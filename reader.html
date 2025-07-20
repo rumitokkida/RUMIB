@@ -16,19 +16,15 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      transition: background 0.3s, color 0.3s;
     }
     body.dark {
       background: #222;
-      color: #eee;
+      color: #fff;
     }
-    h1 {
-      text-align: center;
-      color: #d6336c;
-      margin-top: 1rem;
-    }
-    #viewerControls, .popup {
-      text-align: center;
-      margin: 0.5rem 0;
+    h1 { text-align: center; color: #d6336c; margin-top: 1rem; }
+    #controls, #viewerControls {
+      text-align: center; margin: 0.5rem 0;
     }
     button, select, input[type=color] {
       margin: 0.2rem;
@@ -42,6 +38,7 @@
       width: 90vw;
       height: 80vh;
       border: 1px solid #ccc;
+      background: white;
     }
     .popup {
       position: fixed;
@@ -65,11 +62,18 @@
       justify-content: space-between;
     }
     .popup li:hover { background: #ffd3e0; }
-    .closeBtn { float: right; cursor: pointer; color: red; }
+    .closeBtn {
+      float: right;
+      cursor: pointer;
+      color: red;
+    }
   </style>
 </head>
 <body>
   <h1>📚 RUMIB EPUB 뷰어</h1>
+  <div id="controls">
+    <input type="file" id="fileInput" accept=".epub" />
+  </div>
   <div id="viewerControls" style="display:none">
     <button onclick="toggleTheme()">🌞/🌙 다크모드</button>
     <button onclick="changeFontSize(-2)">A-</button>
@@ -118,22 +122,26 @@
     const viewerControls = document.getElementById("viewerControls");
     const viewer = document.getElementById("viewer");
 
-    // 자동 epub 파일 불러오기 (배포용)
-    window.addEventListener("load", () => {
-      const fileUrl = "serazael1.epub";
-      loadEpub(fileUrl);
-    });
+    document.getElementById("fileInput").addEventListener("change", function () {
+      const file = this.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
 
-    function loadEpub(url) {
+      if (rendition) {
+        rendition.destroy();
+        viewer.innerHTML = "";
+      }
+
       book = ePub(url);
       rendition = book.renderTo("viewer", {
         width: "100%",
         height: "100%",
       });
+
       rendition.display();
       viewerControls.style.display = "block";
 
-      // 목차 처리
+      // 목차 표시
       book.loaded.navigation.then(nav => {
         const tocItems = document.getElementById("tocItems");
         tocItems.innerHTML = "";
@@ -155,6 +163,13 @@
           localStorage.setItem(`note_${cfiRange}`, note);
           const item = document.createElement("li");
           item.textContent = note;
+          const del = document.createElement("button");
+          del.textContent = "❌";
+          del.onclick = function () {
+            localStorage.removeItem(`note_${cfiRange}`);
+            item.remove();
+          };
+          item.appendChild(del);
           item.addEventListener("click", function () {
             rendition.display(cfiRange);
             hidePopup("notePopup");
@@ -162,14 +177,27 @@
           document.getElementById("noteItems").appendChild(item);
         }
       });
-    }
+    });
 
-    function showPopup(id) { document.getElementById(id).style.display = "block"; }
-    function hidePopup(id) { document.getElementById(id).style.display = "none"; }
-    function prevPage() { rendition.prev(); }
-    function nextPage() { rendition.next(); }
     function toggleTheme() {
       document.body.classList.toggle("dark");
+      const iframe = document.querySelector("#viewer iframe");
+      if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
+        iframe.contentDocument.body.style.backgroundColor = document.body.classList.contains("dark") ? "#222" : "#fff";
+        iframe.contentDocument.body.style.color = document.body.classList.contains("dark") ? "#fff" : "#000";
+      }
+    }
+    function showPopup(id) {
+      document.getElementById(id).style.display = "block";
+    }
+    function hidePopup(id) {
+      document.getElementById(id).style.display = "none";
+    }
+    function prevPage() {
+      rendition.prev();
+    }
+    function nextPage() {
+      rendition.next();
     }
     function changeFontSize(amount) {
       const iframe = document.querySelector("#viewer iframe");
@@ -180,7 +208,9 @@
       }
     }
     function changeFont(font) {
-      if (rendition) rendition.themes.font(font);
+      if (rendition) {
+        rendition.themes.font(font);
+      }
     }
     function updateTheme() {
       const fontColor = document.getElementById("fontColor").value;
@@ -195,9 +225,18 @@
     function saveBookmark() {
       if (rendition && rendition.currentLocation()) {
         const cfi = rendition.currentLocation().start.cfi;
-        localStorage.setItem(`bookmark_${cfi}`, true);
+        const key = `bookmark_${cfi}`;
+        if (localStorage.getItem(key)) return; // 중복 저장 방지
+        localStorage.setItem(key, true);
         const item = document.createElement("li");
         item.textContent = `북마크: ${cfi}`;
+        const del = document.createElement("button");
+        del.textContent = "❌";
+        del.onclick = function () {
+          localStorage.removeItem(key);
+          item.remove();
+        };
+        item.appendChild(del);
         item.addEventListener("click", function () {
           rendition.display(cfi);
           hidePopup("bookmarkPopup");
