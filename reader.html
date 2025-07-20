@@ -22,6 +22,10 @@
       background: #222;
       color: #fff;
     }
+    body.dark #viewer iframe {
+      background-color: #222 !important;
+      color: #fff !important;
+    }
     h1 { text-align: center; color: #d6336c; margin-top: 1rem; }
     #controls, #viewerControls {
       text-align: center; margin: 0.5rem 0;
@@ -141,9 +145,13 @@
       rendition.display();
       viewerControls.style.display = "block";
 
-      const themeColors = document.body.classList.contains("dark") ? { background: "#222", color: "#fff" } : { background: "#fff", color: "#000" };
-      rendition.themes.default({ body: themeColors });
+      // 다크모드 상태 반영
+      if (document.body.classList.contains("dark")) {
+        const iframe = document.querySelector("#viewer iframe");
+        iframe?.contentDocument?.body?.setAttribute("style", "background-color: #222; color: #fff;");
+      }
 
+      // 목차 표시
       book.loaded.navigation.then(nav => {
         const tocItems = document.getElementById("tocItems");
         tocItems.innerHTML = "";
@@ -158,6 +166,7 @@
         });
       });
 
+      // 메모 기능
       rendition.on("selected", function (cfiRange, contents) {
         const note = prompt("메모를 입력하세요");
         if (note) {
@@ -182,10 +191,7 @@
 
     function toggleTheme() {
       document.body.classList.toggle("dark");
-      const themeColors = document.body.classList.contains("dark") ? { background: "#222", color: "#fff" } : { background: "#fff", color: "#000" };
-      if (rendition) {
-        rendition.themes.default({ body: themeColors });
-      }
+      updateTheme();
     }
     function showPopup(id) {
       document.getElementById(id).style.display = "block";
