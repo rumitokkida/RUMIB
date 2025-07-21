@@ -1,75 +1,139 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RUMIB EPUB 뷰어</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RUMIB EPUB 뷰어 - 셀레스트 최종</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://unpkg.com/epubjs/dist/epub.min.js"></script>
   <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: 'Nanum Gothic', sans-serif;
-      background: #fff0f5;
-      margin: 0;
-      padding: 0;
+    body { font-family: 'Nanum Gothic', sans-serif; background: #fff0f5; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; }
+    body.dark { background: #23212b; color: #fff; }
+    #viewer { width: 90vw; height: 80vh; border: 1px solid #ccc; background: white; max-width: 900px;}
+    #controls, #viewerControls { text-align: center; margin: 1rem 0; }
+    button, select, input[type=color] { margin: 0.2rem; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 1rem; }
+    /* ★ 통합목록 팝업 우측 끝 고정 + 세로 중앙 ★ */
+    .sidebar-popup {
+      position: fixed;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      background: #fff;
+      padding: 1.1rem 1.3rem 1.4rem 1.3rem;
+      border: none;
+      border-radius: 18px 0 0 18px;
+      box-shadow: -8px 0 36px 0 #ffabe1a8;
+      z-index: 1001;
+      width: 370px;
+      min-height: 410px;
+      max-height: 81vh;
+      overflow-y: auto;
+      background: #fff6fc;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      transition: background 0.3s, color 0.3s;
+      transition: all .2s cubic-bezier(.39,.57,.58,1);
     }
-    body.dark {
-      background: #222;
-      color: #fff;
+    body.dark .sidebar-popup { background: #23212b; color: #fff; box-shadow: -8px 0 36px 0 #a181cba8; }
+    .closeBtn {
+      position: absolute; top: 14px; right: 20px; cursor: pointer;
+      color: #e67; font-size: 1.2em; border: none; background: none;
+      opacity:0.65; font-weight:bold; z-index:1002;
     }
-    body.dark #viewer iframe {
-      background-color: #222 !important;
-      color: #fff !important;
+    .closeBtn:hover { opacity: 1; color: #d33;}
+    .tab-wrap {
+      display: flex; border-bottom: 2px solid #f2a1d1; margin-bottom: 1.1rem;
+      width: calc(100% - 35px);
+      background: none; position: relative;
+      min-width: 0; max-width: 100%;
+      gap: 0;
     }
-    h1 { text-align: center; color: #d6336c; margin-top: 1rem; }
-    #controls, #viewerControls {
-      text-align: center; margin: 0.5rem 0;
-    }
-    button, select, input[type=color] {
-      margin: 0.2rem;
-      padding: 0.4rem 0.8rem;
-      border: 1px solid #ccc;
-      border-radius: 0.5rem;
-      font-size: 1rem;
+    /* 탭 버튼 - 잘림 없이 줄바꿈 허용 */
+    .tab-btn {
+      flex: 1 1 auto;
+      width: auto;
+      max-width: none;
+      white-space: normal;
+      padding: 0.5em 0.3em;
+      font-size: 1.0em;
+      color: #b84a85;
+      font-weight: bold;
+      letter-spacing: 0.04em;
       cursor: pointer;
+      background: none;
+      border: none;
+      border-radius: 14px 14px 0 0;
+      transition: background .17s, color .17s;
+      text-align: center;
     }
-    #viewer {
-      width: 90vw;
-      height: 80vh;
-      border: 1px solid #ccc;
-      background: white;
+    .tab-btn.active, .tab-btn:focus, .tab-btn:hover {
+      background: #fd99c7; color: #fff; box-shadow: 0 2px 6px #ffc0ef44;
     }
-    .popup {
-      position: fixed;
-      top: 10%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #fff;
-      padding: 1rem;
-      border: 2px solid #ffc0cb;
-      border-radius: 10px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-      z-index: 1000;
-      width: 300px;
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .sidebar-popup ul { list-style: none; padding: 0; margin: 0;}
+    .sidebar-popup li {
+      padding: 0.38em 0.22em; margin: 0.13em 0; border-bottom: 1px dashed #e5b8d6;
+      display: flex; align-items: center; justify-content: space-between; gap: 0.42rem; font-size: 0.98em;
+      border-radius: 6px; transition: background .14s;
+      min-height: 1.8em;
+      line-height: 1.2;
     }
-    .popup h3 { margin-top: 0; }
-    .popup ul { list-style: none; padding: 0; }
-    .popup li {
-      padding: 0.3rem;
+    .sidebar-popup li:hover { background: #ffe8f6;}
+    .sidebar-popup li:last-child { border-bottom: none; }
+    /* 숫자+텍스트 링크 통합 스타일 */
+    .sidebar-popup li a.jump {
+      flex:1;
+      min-width: 0;
+      text-align: left;
+      max-width: 180px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      vertical-align: middle;
       cursor: pointer;
       display: flex;
       justify-content: space-between;
+      color: #b84a85;
+      text-decoration: none;
     }
-    .popup li:hover { background: #ffd3e0; }
-    .closeBtn {
-      float: right;
-      cursor: pointer;
-      color: red;
+    .sidebar-popup li a.jump:hover {
+      text-decoration: underline;
+    }
+    .sidebar-popup li a.jump .toc-num {
+      flex: none;
+      text-align: right;
+      color: #7a577a;
+      min-width: 2.7em;
+      margin-left: 0.4em;
+      font-family: monospace;
+      font-weight: 600;
+      font-size: 1.0em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .sidebar-popup li button {
+      padding: 0 0.43em; font-size: 0.93em; border: none;
+      background: #ffe4ef; color: #c00; border-radius: 6px; cursor:pointer;
+      font-weight:bold; margin-left:0.1em;
+    }
+    .sidebar-popup li button:hover { background: #fd99c7; color: #fff; }
+    #progressBar { font-size:1.00em; margin-left: 0.8rem; color: #b13e7b; font-weight:500; }
+    .hl-inline { text-decoration: underline; text-decoration-thickness:2.7px; background: none;}
+    .spread-toggle { margin-left: 1.2rem; font-size:0.97em;}
+    @media (max-width:700px) {
+      #viewer { width: 98vw; height: 56vh; }
+      .sidebar-popup {
+        width: 99vw;
+        right: 0;
+        min-height: 180px;
+        border-radius: 0;
+        top: unset;
+        bottom: 0;
+        transform: none;
+        max-height: 52vh;
+      }
+      .tab-btn { font-size:0.97em; }
+      .sidebar-popup li a.jump { max-width: 120px; }
     }
   </style>
 </head>
@@ -79,7 +143,7 @@
     <input type="file" id="fileInput" accept=".epub" />
   </div>
   <div id="viewerControls" style="display:none">
-    <button onclick="toggleTheme()">🌞/🌙 다크모드</button>
+    <button onclick="toggleTheme()">🌙/🌞 다크모드</button>
     <button onclick="changeFontSize(-2)">A-</button>
     <button onclick="changeFontSize(2)">A+</button>
     <select onchange="changeFont(this.value)">
@@ -90,120 +154,398 @@
     </select>
     <label>글자색 <input type="color" id="fontColor" value="#000000" onchange="updateTheme()"></label>
     <label>배경색 <input type="color" id="bgColor" value="#fff0f5" onchange="updateTheme()"></label>
-    <select id="marginSelect" onchange="updateTheme()">
-      <option value="1rem">보통 여백</option>
-      <option value="0.5rem">좁게</option>
-      <option value="0rem">없음</option>
-    </select>
+    <label>하이라이트 <input type="color" id="highlightColor" value="#ffe566"></label>
     <button onclick="prevPage()">← 이전</button>
     <button onclick="nextPage()">다음 →</button>
-    <button onclick="saveBookmark()">🔖 북마크 저장</button>
-    <button onclick="showPopup('bookmarkPopup')">📑 북마크 목록</button>
-    <button onclick="showPopup('notePopup')">📝 메모 목록</button>
-    <button onclick="showPopup('tocPopup')">📚 목차</button>
+    <span class="spread-toggle">
+      <label><input type="radio" name="spread" value="none" checked onchange="setSpread('none')"> 1쪽</label>
+      <label><input type="radio" name="spread" value="always" onchange="setSpread('always')"> 2쪽</label>
+    </span>
+    <span id="progressBar"></span>
+    <button onclick="saveBookmark()">🔖 북마크</button>
+    <button onclick="showSidebar();">📒 통합목록</button>
   </div>
-
-  <div id="bookmarkPopup" class="popup" style="display:none">
-    <span class="closeBtn" onclick="hidePopup('bookmarkPopup')">❌</span>
-    <h3>📑 북마크 목록</h3>
-    <ul id="bookmarkItems"></ul>
-  </div>
-  <div id="notePopup" class="popup" style="display:none">
-    <span class="closeBtn" onclick="hidePopup('notePopup')">❌</span>
-    <h3>📝 메모 목록</h3>
-    <ul id="noteItems"></ul>
-  </div>
-  <div id="tocPopup" class="popup" style="display:none">
-    <span class="closeBtn" onclick="hidePopup('tocPopup')">❌</span>
-    <h3>📚 목차</h3>
-    <ul id="tocItems"></ul>
-  </div>
-
   <div id="viewer"></div>
-
+  <!-- 통합 사이드바 -->
+  <div id="sidebar" class="sidebar-popup" style="display:none">
+    <button class="closeBtn" onclick="hideSidebar()">✖</button>
+    <div class="tab-wrap">
+      <button class="tab-btn active" onclick="showTab('tocTab')">목차</button>
+      <button class="tab-btn" onclick="showTab('bookmarkTab')">북마크</button>
+      <button class="tab-btn" onclick="showTab('highlightTab')">하이라이트</button>
+      <button class="tab-btn" onclick="showTab('noteTab')">메모</button>
+    </div>
+    <div id="tocTab" class="tab-content active"><ul id="tocItems"></ul></div>
+    <div id="bookmarkTab" class="tab-content"><ul id="bookmarkItems"></ul></div>
+    <div id="highlightTab" class="tab-content"><ul id="highlightItems"></ul></div>
+    <div id="noteTab" class="tab-content"><ul id="noteItems"></ul></div>
+  </div>
   <script>
     let book, rendition;
-    const viewerControls = document.getElementById("viewerControls");
+    let lastCfiKey = 'rumib_last_cfi';
+    let currentBookKey = null;
+    let tocTree = [];
+    let spreadMode = "none";
+    let currentCFI = null;
     const viewer = document.getElementById("viewer");
+    const viewerControls = document.getElementById("viewerControls");
+    let touchStartX = 0;
 
     document.getElementById("fileInput").addEventListener("change", function () {
+      viewer.innerHTML = "";
+      hideSidebar();
       const file = this.files[0];
       if (!file) return;
-      const url = URL.createObjectURL(file);
-
-      if (rendition) {
-        rendition.destroy();
-        viewer.innerHTML = "";
-      }
-
-      book = ePub(url);
-      rendition = book.renderTo("viewer", {
-        width: "100%",
-        height: "100%",
-      });
-
-      rendition.display();
-      viewerControls.style.display = "block";
-
-      // 다크모드 상태 반영
-      if (document.body.classList.contains("dark")) {
-        const iframe = document.querySelector("#viewer iframe");
-        iframe?.contentDocument?.body?.setAttribute("style", "background-color: #222; color: #fff;");
-      }
-
-      // 목차 표시
-      book.loaded.navigation.then(nav => {
-        const tocItems = document.getElementById("tocItems");
-        tocItems.innerHTML = "";
-        nav.toc.forEach(item => {
-          const li = document.createElement("li");
-          li.textContent = item.label;
-          li.addEventListener("click", () => {
-            rendition.display(item.href);
-            hidePopup("tocPopup");
-          });
-          tocItems.appendChild(li);
+      if (rendition) rendition.destroy();
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const arrayBuffer = event.target.result;
+        currentBookKey = file.name.replace(/\s+/g, "_").toLowerCase();
+        book = ePub(arrayBuffer);
+        rendition = book.renderTo("viewer", {
+          width: "100%", height: "100%",
+          spread: spreadMode
         });
-      });
+        rendition.display().then(() => {
+          const lastCfi = localStorage.getItem(`${lastCfiKey}_${currentBookKey}`);
+          if (lastCfi) rendition.display(lastCfi);
+          applyTheme();
+          restoreHighlights();
+          loadAllLists();
+          setupSelection();
+        });
+        viewerControls.style.display = "block";
+        rendition.on("relocated", function(location) {
+          if (location && location.start && location.start.cfi) {
+            currentCFI = location.start.cfi;
+            localStorage.setItem(`${lastCfiKey}_${currentBookKey}`, currentCFI);
+          }
+          updateProgress(location);
+          setupSelection();
+        });
+        // 목차
+        book.loaded.navigation.then(nav => {
+          tocTree = nav.toc;
+          document.getElementById("tocItems").innerHTML = "";
+          buildTOC(tocTree, document.getElementById("tocItems"));
+        });
+        // 하이라이트/메모: epub.js의 selection event
+        rendition.on("selected", function(cfiRange, contents) {
+          addHighlightAndNote(cfiRange);
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    });
 
-      // 메모 기능
-      rendition.on("selected", function (cfiRange, contents) {
-        const note = prompt("메모를 입력하세요");
-        if (note) {
-          localStorage.setItem(`note_${cfiRange}`, note);
+    // 1쪽/2쪽 보기 전환 (현위치 유지, 첫문장 기준)
+    function setSpread(mode) {
+      spreadMode = mode;
+      let cfi = currentCFI;
+      const iframe = document.querySelector("#viewer iframe");
+      if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
+        let minTop = 99999, bestNode = null;
+        let walker = iframe.contentDocument.createTreeWalker(
+          iframe.contentDocument.body,
+          NodeFilter.SHOW_TEXT,
+          { acceptNode: node => {
+            if (!node.textContent.trim()) return NodeFilter.FILTER_SKIP;
+            const rect = node.parentElement?.getBoundingClientRect();
+            if (!rect || rect.height === 0) return NodeFilter.FILTER_SKIP;
+            const pageRect = iframe.contentDocument.body.getBoundingClientRect();
+            if (rect.bottom < pageRect.top || rect.top > pageRect.bottom) return NodeFilter.FILTER_SKIP;
+            if (rect.top < minTop) { minTop = rect.top; bestNode = node; }
+            return NodeFilter.FILTER_ACCEPT;
+          }},
+          false
+        );
+        while(walker.nextNode()){}
+        if (bestNode) {
+          let range = iframe.contentDocument.createRange();
+          range.selectNodeContents(bestNode);
+          if (rendition && rendition.getRangeCfi) {
+            rendition.getRangeCfi(range).then(realCfi => { cfi = realCfi; });
+          }
+        }
+      }
+      setTimeout(() => {
+        rendition.spread(mode);
+        setTimeout(() => {
+          rendition.display(cfi);
+          setTimeout(setupSelection, 300);
+        }, 180);
+      }, 80);
+    }
+
+    // 드래그-하이라이트/메모 (iframe/epub.js 이벤트 둘 다)
+    function setupSelection() {
+      const iframe = document.querySelector("#viewer iframe");
+      if (!iframe) return;
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+      doc.onmouseup = function() {
+        const selection = doc.getSelection();
+        if (!selection || selection.isCollapsed) return;
+        const selectedText = selection.toString();
+        if (selectedText.length < 1) return;
+        if (rendition && rendition.getRangeCfi) {
+          rendition.getRangeCfi(selection.getRangeAt(0)).then(cfiRange => {
+            addHighlightAndNote(cfiRange);
+            selection.removeAllRanges();
+          });
+        }
+      };
+    }
+    // 하이라이트 + 메모 추가
+    function addHighlightAndNote(cfiRange) {
+      // 하이라이트
+      const color = document.getElementById("highlightColor").value;
+      const highlightId = `hl_${currentBookKey}_${encodeURIComponent(cfiRange)}`;
+      rendition.annotations.remove(highlightId, "highlight");
+      rendition.annotations.highlight(
+        cfiRange,
+        { 'class': 'hl-inline', "style": `background:none;text-decoration:underline 2.7px ${color};` },
+        function(e){
+          if(confirm("이 하이라이트를 삭제할까요?")) {
+            localStorage.removeItem(`highlight_${currentBookKey}_${cfiRange}`);
+            localStorage.removeItem(`note_${currentBookKey}_${cfiRange}`);
+            rendition.annotations.remove(highlightId, "highlight");
+            loadHighlights(); loadNotes(); restoreHighlights();
+          }
+        }, color, highlightId
+      );
+      localStorage.setItem(`highlight_${currentBookKey}_${cfiRange}`, color);
+
+      // 메모
+      setTimeout(function() {
+        const note = prompt("메모를 입력하세요 (없으면 취소)");
+        if (note) localStorage.setItem(`note_${currentBookKey}_${cfiRange}`, note);
+        loadHighlights(); loadNotes(); restoreHighlights();
+      }, 50);
+    }
+
+    // 목차 (숫자도 링크, 흐릿하지만 클릭 가능)
+    function buildTOC(items, parentElement) {
+      items.forEach(item => {
+        let tocNum = '';
+        let label = item.label;
+        if (label.match(/^(\d+\.)/)) {
+          tocNum = label.match(/^(\d+\.)/)[1];
+          label = label.replace(/^(\d+\.)/, '').trim();
+        }
+        const li = document.createElement("li");
+
+        let target = item.cfi || item.href;
+        if (target && !target.startsWith("#")) target = "#" + target;
+
+        li.innerHTML = `
+          <a href="javascript:void(0)" class="jump" title="${item.label}">
+            <span class="toc-label">${label}</span>
+            ${tocNum ? `<span class="toc-num">${tocNum}</span>` : ''}
+          </a>
+        `;
+
+        li.querySelector(".jump").onclick = (e) => {
+          e.preventDefault();
+          rendition.display(target);
+          hideSidebar();
+        };
+        parentElement.appendChild(li);
+
+        if (item.subitems && item.subitems.length > 0) {
+          const ul = document.createElement("ul");
+          li.appendChild(ul);
+          buildTOC(item.subitems, ul);
+        }
+      });
+    }
+
+    // 북마크 저장 (중복방지, 현재 페이지 실제 첫문단 기준)
+    function saveBookmark() {
+      if (!rendition || !rendition.currentLocation()) return;
+      const cfi = rendition.currentLocation().start.cfi;
+      const key = `bookmark_${currentBookKey}_${cfi}`;
+      if (localStorage.getItem(key)) {
+        alert('이미 북마크된 페이지입니다!');
+        return;
+      }
+      const iframe = document.querySelector("#viewer iframe");
+      let firstText = "페이지";
+      if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
+        let minTop = 99999, bestNode = null;
+        let walker = iframe.contentDocument.createTreeWalker(
+          iframe.contentDocument.body,
+          NodeFilter.SHOW_TEXT,
+          { acceptNode: node => {
+              if (!node.textContent.trim()) return NodeFilter.FILTER_SKIP;
+              const rect = node.parentElement?.getBoundingClientRect();
+              if (!rect || rect.height === 0) return NodeFilter.FILTER_SKIP;
+              const pageRect = iframe.contentDocument.body.getBoundingClientRect();
+              if (rect.bottom < pageRect.top || rect.top > pageRect.bottom) return NodeFilter.FILTER_SKIP;
+              if (rect.top < minTop) { minTop = rect.top; bestNode = node; }
+              return NodeFilter.FILTER_ACCEPT;
+          }},
+          false
+        );
+        while(walker.nextNode()){}
+        firstText = bestNode ? bestNode.textContent.trim().replace(/\s+/g, " ").substring(0, 40) + "..." : "페이지";
+      }
+      localStorage.setItem(key, firstText);
+      loadBookmarks();
+    }
+
+    // 북마크/하이라이트/메모 목록
+function loadBookmarks() {
+  const list = document.getElementById("bookmarkItems");
+  list.innerHTML = "";
+  for (let key in localStorage) {
+    if (key.startsWith(`bookmark_${currentBookKey}_`)) {
+      const cfi = key.substring(`bookmark_${currentBookKey}_`.length);
+      const title = localStorage.getItem(key);
+      const item = document.createElement("li");
+      item.innerHTML = `<a href="javascript:void(0)" class="jump">${title}</a>`;
+      item.querySelector("a.jump").onclick = (e) => {
+        e.preventDefault();
+        rendition.display(cfi);
+        hideSidebar();
+      };
+      const del = document.createElement("button");
+      del.textContent = "X";
+      del.onclick = function () {
+        localStorage.removeItem(key);
+        item.remove();
+      };
+      item.appendChild(del);
+      list.appendChild(item);
+    }
+  }
+}
+
+    function loadHighlights() {
+      const list = document.getElementById("highlightItems");
+      list.innerHTML = "";
+      for (let key in localStorage) {
+        if (key.startsWith(`highlight_${currentBookKey}_`)) {
+          const cfi = key.replace(`highlight_${currentBookKey}_`, "");
+          const color = localStorage.getItem(key);
           const item = document.createElement("li");
-          item.textContent = note;
+          item.innerHTML = `<span class="jump" style="text-decoration:underline 2.7px ${color};background:none;padding:0 0.2em;">본문 밑줄 하이라이트</span>`;
+          item.querySelector(".jump").onclick = () => { rendition.display(cfi); hideSidebar(); };
           const del = document.createElement("button");
-          del.textContent = "❌";
+          del.textContent = "X";
           del.onclick = function () {
-            localStorage.removeItem(`note_${cfiRange}`);
+            localStorage.removeItem(key);
+            rendition.annotations.remove(`hl_${currentBookKey}_${encodeURIComponent(cfi)}`, "highlight");
             item.remove();
           };
           item.appendChild(del);
-          item.addEventListener("click", function () {
-            rendition.display(cfiRange);
-            hidePopup("notePopup");
-          });
-          document.getElementById("noteItems").appendChild(item);
+          list.appendChild(item);
         }
-      });
-    });
+      }
+    }
+    function loadNotes() {
+      const list = document.getElementById("noteItems");
+      list.innerHTML = "";
+      for (let key in localStorage) {
+        if (key.startsWith(`note_${currentBookKey}_`)) {
+          const cfi = key.replace(`note_${currentBookKey}_`, "");
+          const note = localStorage.getItem(key);
+          const item = document.createElement("li");
+          item.innerHTML = `<span class="jump">"${note}"</span>`;
+          item.querySelector(".jump").onclick = () => { rendition.display(cfi); hideSidebar(); };
+          const del = document.createElement("button");
+          del.textContent = "X";
+          del.onclick = function () {
+            localStorage.removeItem(key); item.remove();
+          };
+          item.appendChild(del);
+          list.appendChild(item);
+        }
+      }
+    }
+    function loadAllLists() { loadBookmarks(); loadHighlights(); loadNotes();
+      document.getElementById("tocItems").innerHTML = ""; buildTOC(tocTree, document.getElementById("tocItems"));
+    }
 
-    function toggleTheme() {
-      document.body.classList.toggle("dark");
-      updateTheme();
+    // 하이라이트 복원 (removeAll 대신 개별 remove!)
+    function restoreHighlights() {
+      if (!rendition || !currentBookKey) return;
+      // 기존 highlight 모두 삭제
+      for (let key in localStorage) {
+        if (key.startsWith(`highlight_${currentBookKey}_`)) {
+          const cfi = key.replace(`highlight_${currentBookKey}_`, "");
+          const highlightId = `hl_${currentBookKey}_${encodeURIComponent(cfi)}`;
+          rendition.annotations.remove(highlightId, "highlight");
+        }
+      }
+      // 다시 모두 추가
+      for (let key in localStorage) {
+        if (key.startsWith(`highlight_${currentBookKey}_`)) {
+          const cfi = key.replace(`highlight_${currentBookKey}_`, "");
+          const color = localStorage.getItem(key);
+          const highlightId = `hl_${currentBookKey}_${encodeURIComponent(cfi)}`;
+          rendition.annotations.highlight(
+            cfi, { 'class': 'hl-inline', "style": `background:none;text-decoration:underline 2.7px ${color};` },
+            function(e){
+              if(confirm("이 하이라이트를 삭제할까요?")) {
+                localStorage.removeItem(`highlight_${currentBookKey}_${cfi}`);
+                localStorage.removeItem(`note_${currentBookKey}_${cfi}`);
+                rendition.annotations.remove(highlightId, "highlight");
+                loadHighlights(); loadNotes(); restoreHighlights();
+              }
+            }, color, highlightId
+          );
+        }
+      }
     }
-    function showPopup(id) {
-      document.getElementById(id).style.display = "block";
+
+    // 진행률 (진짜 반영)
+    function updateProgress(location) {
+      if (!book || !location) return;
+      let percent = 0;
+      if (location && location.start && typeof location.start.displayed === "object" && location.start.displayed.total > 0) {
+        percent = ((location.start.displayed.page + (spreadMode==="always"?1:0)) / location.start.displayed.total * 100).toFixed(1);
+      } else if (location && location.start && location.start.percentage) {
+        percent = (location.start.percentage * 100).toFixed(1);
+      }
+      document.getElementById("progressBar").innerText = `진행률: ${percent}%`;
+      if (currentBookKey && location.start.cfi) {
+        localStorage.setItem(`${lastCfiKey}_${currentBookKey}`, location.start.cfi);
+      }
     }
-    function hidePopup(id) {
-      document.getElementById(id).style.display = "none";
+
+    // 사이드바, 탭
+    function showSidebar() { document.getElementById("sidebar").style.display = "flex"; }
+    function hideSidebar() { document.getElementById("sidebar").style.display = "none"; }
+    function showTab(tabId) {
+      Array.from(document.querySelectorAll('.tab-content')).forEach(el => el.classList.remove('active'));
+      Array.from(document.querySelectorAll('.tab-btn')).forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      document.querySelectorAll('.tab-btn')[["tocTab","bookmarkTab","highlightTab","noteTab"].indexOf(tabId)].classList.add('active');
     }
-    function prevPage() {
-      rendition.prev();
-    }
-    function nextPage() {
-      rendition.next();
+    // 뷰어 부가기능
+    function prevPage() { if (rendition) rendition.prev(); }
+    function nextPage() { if (rendition) rendition.next(); }
+    viewer.addEventListener("touchstart", e => { touchStartX = e.changedTouches[0].screenX; });
+    viewer.addEventListener("touchend", e => {
+      const dx = e.changedTouches[0].screenX - touchStartX;
+      if (dx > 40) prevPage();
+      else if (dx < -40) nextPage();
+    });
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "ArrowLeft") prevPage();
+      if (e.key === "ArrowRight") nextPage();
+    });
+    function toggleTheme() { document.body.classList.toggle("dark"); applyTheme(); }
+    function applyTheme() {
+      const isDark = document.body.classList.contains("dark");
+      if (rendition) {
+        rendition.themes.default({
+          body: {
+            background: isDark ? "#23212b" : "#fff",
+            color: isDark ? "#fff" : "#000"
+          }
+        });
+      }
     }
     function changeFontSize(amount) {
       const iframe = document.querySelector("#viewer iframe");
@@ -213,41 +555,13 @@
         body.style.fontSize = (currentSize + amount) + "px";
       }
     }
-    function changeFont(font) {
-      if (rendition) {
-        rendition.themes.font(font);
-      }
-    }
+    function changeFont(font) { if (rendition) { rendition.themes.font(font); } }
     function updateTheme() {
       const fontColor = document.getElementById("fontColor").value;
       const bgColor = document.getElementById("bgColor").value;
-      const margin = document.getElementById("marginSelect").value;
       if (rendition) {
         rendition.themes.override("color", fontColor);
         rendition.themes.override("background", bgColor);
-        rendition.themes.default({ body: { padding: margin } });
-      }
-    }
-    function saveBookmark() {
-      if (rendition && rendition.currentLocation()) {
-        const cfi = rendition.currentLocation().start.cfi;
-        const key = `bookmark_${cfi}`;
-        if (localStorage.getItem(key)) return;
-        localStorage.setItem(key, true);
-        const item = document.createElement("li");
-        item.textContent = `북마크: ${cfi}`;
-        const del = document.createElement("button");
-        del.textContent = "❌";
-        del.onclick = function () {
-          localStorage.removeItem(key);
-          item.remove();
-        };
-        item.appendChild(del);
-        item.addEventListener("click", function () {
-          rendition.display(cfi);
-          hidePopup("bookmarkPopup");
-        });
-        document.getElementById("bookmarkItems").appendChild(item);
       }
     }
   </script>
